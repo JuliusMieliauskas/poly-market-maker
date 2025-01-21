@@ -1,18 +1,19 @@
 import logging
 import sys
 import time
-from py_clob_client.client import ClobClient, ApiCreds, OrderArgs, FilterParams
+from py_clob_client.client import ClobClient, ApiCreds, OrderArgs, OpenOrderParams
 from py_clob_client.exceptions import PolyApiException
 
 from poly_market_maker.utils import randomize_default_price
 from poly_market_maker.constants import OK
 from poly_market_maker.metrics import clob_requests_latency
+from py_clob_client.clob_types import ApiCreds, BalanceAllowanceParams, AssetType, TradeParams
 
 DEFAULT_PRICE = 0.5
 
 
 class ClobApi:
-    def __init__(self, host, chain_id, private_key):
+    def __init__(self, host, chain_id, private_key, funder_address: str = None):
         self.logger = logging.getLogger(self.__class__.__name__)
 
         self.client = self._init_client_L1(
@@ -23,7 +24,11 @@ class ClobApi:
 
         try:
             api_creds = self.client.derive_api_key()
-            self.logger.debug(f"Api key found: {api_creds.api_key}")
+            # self.logger.debug("-------------------------------------------------------------")
+            # self.logger.debug(f"Api key found: {api_creds.api_key}")
+            # self.logger.debug(f"Api Secret: {api_creds.api_secret}")
+            # self.logger.debug(f"Api passphrase: {api_creds.api_passphrase}")
+            # self.logger.debug("-------------------------------------------------------------")
         except PolyApiException:
             self.logger.debug("Api key not found. Creating a new one...")
             api_creds = self.client.create_api_key()
@@ -34,6 +39,8 @@ class ClobApi:
             chain_id=chain_id,
             private_key=private_key,
             creds=api_creds,
+            signature_type=1,
+            funder_address=funder_address
         )
 
     def get_address(self):
@@ -83,7 +90,7 @@ class ClobApi:
         self.logger.debug("Fetching open keeper orders from the API...")
         start_time = time.time()
         try:
-            resp = self.client.get_orders(FilterParams(market=condition_id))
+            resp = self.client.get_orders(OpenOrderParams(market=condition_id))
             clob_requests_latency.labels(method="get_orders", status="ok").observe(
                 (time.time() - start_time)
             )
@@ -187,15 +194,19 @@ class ClobApi:
             sys.exit(1)
 
     def _init_client_L2(
-        self, host, chain_id, private_key, creds: ApiCreds
+        self, host, chain_id, private_key, creds: ApiCreds, signature_type: int = 1, funder_address: str = None
     ) -> ClobClient:
-        clob_client = ClobClient(host, chain_id, private_key, creds)
+        clob_client = ClobClient(host, chain_id, private_key, creds, signature_type=signature_type, funder=funder_address)
         try:
             if clob_client.get_ok() == OK:
                 self.logger.info("Connected to CLOB API!")
                 self.logger.info(
                     "CLOB Keeper address: {}".format(clob_client.get_address())
                 )
+                self.logger.info("Account balance")
+                self.logger.info(clob_client.get_balance_allowance(
+                    params=BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
+                ))
                 return clob_client
         except:
             self.logger.error("Unable to connect to CLOB API, shutting down!")

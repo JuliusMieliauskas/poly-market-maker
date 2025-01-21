@@ -135,3 +135,5 @@ logs/
 
 # vscode settings
 .vscode/
+
+config/

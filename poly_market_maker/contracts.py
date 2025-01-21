@@ -154,4 +154,4 @@ class Contracts:
             chain_requests_counter.labels(method="get_balance", status="error").inc()
             raise e
 
-        return self.w3.fromWei(bal, "ether")
+        return web3.Web3.from_wei(bal, "ether")

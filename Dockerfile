@@ -14,4 +14,3 @@ COPY bin bin
 COPY logging.yaml .
 
 WORKDIR /app/bin
-USER keeper

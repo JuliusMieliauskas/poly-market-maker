@@ -8,6 +8,8 @@ def get_args(args) -> dict:
 
     parser.add_argument("--private-key", type=str, required=True, help="Private key")
 
+    parser.add_argument("--funder-address", type=str, required=True, help="Funder address")
+
     parser.add_argument("--rpc-url", type=str, required=True, help="RPC URL")
 
     parser.add_argument("--clob-api-url", type=str, required=True, help="CLOB API url")

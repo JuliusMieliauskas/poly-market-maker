@@ -12,4 +12,5 @@ services:
     volumes:
       - ./config:/app/config
       - ./logs:/app/logs
-    command: ./run
+    # command: ./run
+    command: tail -f /dev/null

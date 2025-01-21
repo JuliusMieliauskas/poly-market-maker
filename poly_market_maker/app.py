@@ -41,6 +41,7 @@ class App:
             host=args.clob_api_url,
             chain_id=self.web3.eth.chain_id,
             private_key=args.private_key,
+            funder_address=args.funder_address,
         )
 
         self.gas_station = GasStation(
