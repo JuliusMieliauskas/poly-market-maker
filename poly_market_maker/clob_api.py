@@ -7,7 +7,7 @@ from py_clob_client.exceptions import PolyApiException
 from poly_market_maker.utils import randomize_default_price
 from poly_market_maker.constants import OK
 from poly_market_maker.metrics import clob_requests_latency
-from py_clob_client.clob_types import ApiCreds, BalanceAllowanceParams, AssetType, TradeParams
+from py_clob_client.clob_types import BalanceAllowanceParams, AssetType
 
 DEFAULT_PRICE = 0.5
 
@@ -52,7 +52,7 @@ class ClobApi:
     def get_conditional_address(self):
         return self.client.get_conditional_address()
 
-    def get_exchange(self, neg_risk = False):
+    def get_exchange(self, neg_risk=False):
         return self.client.get_exchange_address(neg_risk)
 
     def get_price(self, token_id: int) -> float:
@@ -174,6 +174,26 @@ class ClobApi:
                 (time.time() - start_time)
             )
         return False
+    
+    def get_market_data(self, condition_id) -> dict:
+        resp = self.client.get_market(condition_id)
+        return {
+            "condition_id": resp['condition_id'],
+            "tokenA": resp['tokens'][0],
+            "tokenB": resp['tokens'][1],
+        }
+    
+    def get_usdc_balance(self) -> int:
+        resp = self.client.get_balance_allowance(
+            params=BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
+        )
+        return resp['balance']
+    
+    def get_token_balance(self, token_id: int) -> int:
+        resp = self.client.get_balance_allowance(
+            params=BalanceAllowanceParams(asset_type=AssetType.CONDITIONAL, token_id=token_id)
+        )
+        return resp['balance']
 
     def _init_client_L1(
         self,

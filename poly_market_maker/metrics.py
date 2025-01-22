@@ -18,9 +18,3 @@ clob_requests_latency = Histogram(
     labelnames=["method", "status"],
     namespace="market_maker",
 )
-gas_station_latency = Histogram(
-    "gas_station_latency",
-    "Latency of the gas station",
-    labelnames=["strategy", "status"],
-    namespace="market_maker",
-)

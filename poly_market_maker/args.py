@@ -44,22 +44,7 @@ def get_args(args) -> dict:
         default=5,
         help="Order book refresh frequency (in seconds, default: 5)",
     )
-
-    parser.add_argument(
-        "--gas-strategy",
-        type=str,
-        default="web3",
-        help="Gas strategy to be used['fixed', 'station', 'web3']",
-    )
-
-    parser.add_argument("--gas-station-url", type=str, help="Gas station url")
-
-    parser.add_argument(
-        "--fixed-gas-price",
-        type=int,
-        help="Fixed gas price(gwei) to be used",
-    )
-
+    
     parser.add_argument(
         "--metrics-server-port",
         type=int,

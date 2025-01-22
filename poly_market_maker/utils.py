@@ -6,7 +6,6 @@ import yaml
 from logging import config
 from web3 import Web3
 from web3.middleware import SignAndSendRawMiddlewareBuilder, ExtraDataToPOAMiddleware
-from web3.gas_strategies.time_based import fast_gas_price_strategy
 
 
 def setup_logging(
@@ -47,9 +46,6 @@ def setup_web3(rpc_url, private_key):
     w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
     w3.middleware_onion.inject(SignAndSendRawMiddlewareBuilder.build(acct), layer=0)
     w3.eth.default_account = w3.eth.account.from_key(private_key).address
-
-    # Gas Middleware
-    w3.eth.set_gas_price_strategy(fast_gas_price_strategy)
 
     return w3
 
