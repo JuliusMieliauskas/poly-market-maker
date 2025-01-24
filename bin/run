@@ -14,6 +14,11 @@ fi
 
 source .venv/bin/activate
 
+# Set a default value for REFRESH_FREQUENCY if it is not defined
+REFRESH_FREQUENCY=${REFRESH_FREQUENCY:-20}
+
+REFRESH_FREQUENCY_INT=$(echo "$REFRESH_FREQUENCY" | awk '{print int($1)}')
+
 exec python3 -m poly_market_maker \
     --private-key "$PRIVATE_KEY" \
     --rpc-url "$RPC_URL" \
@@ -21,4 +26,5 @@ exec python3 -m poly_market_maker \
     --condition-id "$CONDITION_ID" \
     --strategy "$STRATEGY" \
     --strategy-config "$CONFIG" \
-    --funder-address "$FUNDER_ADDRESS"
+    --funder-address "$FUNDER_ADDRESS" \
+    --refresh-frequency "$REFRESH_FREQUENCY_INT"
