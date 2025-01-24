@@ -10,9 +10,17 @@ def get_args(args) -> dict:
 
     parser.add_argument("--funder-address", type=str, required=True, help="Funder address")
 
-    parser.add_argument("--rpc-url", type=str, required=True, help="RPC URL")
+    parser.add_argument("--wallet-address", type=str, required=True, help="Wallet address")
 
     parser.add_argument("--clob-api-url", type=str, required=True, help="CLOB API url")
+
+    parser.add_argument(
+        "--chain-id",
+        type=int,
+        required=False,
+        default=137,
+        help="Crypto Chain ID (default: 137)",
+    )
 
     parser.add_argument(
         "--sync-interval",

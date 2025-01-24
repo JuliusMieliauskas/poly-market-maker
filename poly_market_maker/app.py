@@ -4,7 +4,7 @@ import time
 
 from poly_market_maker.args import get_args
 from poly_market_maker.price_feed import PriceFeedClob
-from poly_market_maker.utils import setup_logging, setup_web3
+from poly_market_maker.utils import setup_logging
 from poly_market_maker.order import Order, Side
 from poly_market_maker.market import Market
 from poly_market_maker.token import Token, Collateral
@@ -32,12 +32,11 @@ class App:
         self.metrics_server_port = args.metrics_server_port
         start_http_server(self.metrics_server_port)
 
-        self.web3 = setup_web3(args.rpc_url, args.private_key)
-        self.address = self.web3.eth.account.from_key(args.private_key).address
+        self.address = args.wallet_address
 
         self.clob_api = ClobApi(
             host=args.clob_api_url,
-            chain_id=self.web3.eth.chain_id,
+            chain_id=args.chain_id,
             private_key=args.private_key,
             funder_address=args.funder_address,
         )

@@ -21,10 +21,10 @@ REFRESH_FREQUENCY_INT=$(echo "$REFRESH_FREQUENCY" | awk '{print int($1)}')
 
 exec python3 -m poly_market_maker \
     --private-key "$PRIVATE_KEY" \
-    --rpc-url "$RPC_URL" \
     --clob-api-url "$CLOB_API_URL" \
     --condition-id "$CONDITION_ID" \
     --strategy "$STRATEGY" \
     --strategy-config "$CONFIG" \
     --funder-address "$FUNDER_ADDRESS" \
+    --wallet-address "$WALLET_ADDRESS" \
     --refresh-frequency "$REFRESH_FREQUENCY_INT"
