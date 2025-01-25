@@ -47,12 +47,16 @@ class AMMStrategy(BaseStrategy):
             delta=config.get("delta"),
             depth=config.get("depth"),
             max_collateral=config.get("max_collateral"),
+            min_tick=config.get("min_tick"),
+            min_size=config.get("min_size"),
         )
 
     def get_orders(self, orderbook: OrderBook, target_prices):
+        self.logger.debug("AMMStrategy. Getting orders...")
         orders_to_cancel = []
         orders_to_place = []
 
+        self.logger.debug(f"AMMStrategy. Getting expected orders")
         expected_orders = self.amm_manager.get_expected_orders(
             target_prices,
             orderbook.balances,
@@ -90,6 +94,8 @@ class AMMStrategy(BaseStrategy):
                     self._new_order_from_order_type(order_type, new_size)
                 ]
 
+        self.logger.debug(f"AMMStrategy. Returning orders to cancel: {len(orders_to_cancel)}")
+        self.logger.debug(f"AMMStrategy. Returning orders to place: {len(orders_to_place)}")
         return (orders_to_cancel, orders_to_place)
 
     @staticmethod

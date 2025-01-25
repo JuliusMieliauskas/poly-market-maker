@@ -25,10 +25,10 @@ class App:
         args = get_args(args)
         self.sync_interval = args.sync_interval
 
-        # self.min_tick = args.min_tick
-        # self.min_size = args.min_size
+        self.min_tick = args.min_tick
+        self.min_size = args.min_size
 
-        # server to expose the metrics.
+        # server to expose the metrics
         self.metrics_server_port = args.metrics_server_port
         start_http_server(self.metrics_server_port)
 
@@ -77,7 +77,7 @@ class App:
     """
 
     def main(self):
-        self.logger.debug(self.sync_interval)
+        self.logger.debug(f"Synchronization interval: {self.sync_interval}")
         with Lifecycle() as lifecycle:
             lifecycle.on_startup(self.startup)
             lifecycle.every(self.sync_interval, self.synchronize)  # Sync every 5s

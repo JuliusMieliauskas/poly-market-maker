@@ -15,6 +15,8 @@ class AMMConfig:
         delta: float,
         depth: float,
         max_collateral: float,
+        min_tick: float,
+        min_size: float
     ):
         assert isinstance(p_min, float)
         assert isinstance(p_max, float)
@@ -29,6 +31,8 @@ class AMMConfig:
         self.spread = spread
         self.depth = depth
         self.max_collateral = max_collateral
+        self.min_tick = min_tick
+        self.min_size = min_size
 
 
 class AMM:
@@ -47,23 +51,36 @@ class AMM:
         self.spread = config.spread
         self.depth = config.depth
         self.max_collateral = config.max_collateral
+        self.min_tick = config.min_tick
+        self.min_size = config.min_size
 
+    def count_decimal_places(self, number: float) -> int:
+        # Counts number of decimal places in a float, e.g. 0.001 -> 3, 0.01 -> 2
+        number_str = str(number)
+        if '.' in number_str:
+            decimal_part = number_str.split('.')[1]
+            return len(decimal_part)
+        else:
+            return 0
+        
     def set_price(self, p_i: float):
         self.p_i = p_i
-        self.p_u = round(min(p_i + self.depth, self.p_max), 2)
-        self.p_l = round(max(p_i - self.depth, self.p_min), 2)
+        self.p_u = round(min(p_i + self.depth, self.p_max), self.count_decimal_places(self.min_tick))
+        self.p_l = round(max(p_i - self.depth, self.p_min), self.count_decimal_places(self.min_tick))
 
         self.buy_prices = []
-        price = round(self.p_i - self.spread, 2)
+        price = round(self.p_i - self.spread, self.count_decimal_places(self.min_tick))
         while price >= self.p_l:
             self.buy_prices.append(price)
-            price = round(price - self.delta, 2)
+            price = round(price - self.delta, self.count_decimal_places(self.min_tick))
 
         self.sell_prices = []
-        price = round(self.p_i + self.spread, 2)
+        price = round(self.p_i + self.spread, self.count_decimal_places(self.min_tick))
         while price <= self.p_u:
             self.sell_prices.append(price)
-            price = round(price + self.delta, 2)
+            price = round(price + self.delta, self.count_decimal_places(self.min_tick))
+        self.logger.debug(f"Token: {self.token}, Buy prices: {self.buy_prices}")
+        self.logger.debug(f"Token: {self.token}, Sell prices: {self.sell_prices}")
 
     def get_sell_orders(self, x):
         sizes = [
@@ -79,17 +96,22 @@ class AMM:
                 token=self.token,
                 size=size,
             )
-            for (price, size) in zip(self.sell_prices, sizes)
+            for (price, size) in zip(self.sell_prices, sizes) if size >= self.min_size
         ]
 
         return orders
 
     def get_buy_orders(self, y):
+        # y - total ammount of collateral allocated for token
+        sizes_before_diff = [self.buy_size(y, p_t) for p_t in self.buy_prices]
+        self.logger.debug(f"Sizes before diff: {sizes_before_diff}")
+
         sizes = [
             # round down to avoid too large orders
             math_round_down(size, 2)
-            for size in self.diff([self.buy_size(y, p_t) for p_t in self.buy_prices])
+            for size in self.diff(sizes_before_diff)
         ]
+        self.logger.debug(f"Sizes after diff: {sizes}")
 
         orders = [
             Order(
@@ -98,7 +120,7 @@ class AMM:
                 token=self.token,
                 size=size,
             )
-            for (price, size) in zip(self.buy_prices, sizes)
+            for (price, size) in zip(self.buy_prices, sizes) if size >= self.min_size
         ]
 
         return orders
@@ -118,6 +140,7 @@ class AMM:
         return a
 
     def buy_size(self, y, p_t):
+        self.logger.debug(f"Buy size: y={y}, p_t={p_t}")
         return self._buy_size(y, self.p_i, p_t, self.p_l)
 
     @staticmethod
@@ -143,25 +166,37 @@ class AMMManager:
         target_prices,
         balances,
     ):
+        self.logger.debug(f"Target prices: {target_prices}")
+        self.logger.debug(f"Setting prices for AMM")
         self.amm_a.set_price(target_prices[Token.A])
         self.amm_b.set_price(target_prices[Token.B])
 
+        self.logger.debug(f"Getting orders for AMM")
         sell_orders_a = self.amm_a.get_sell_orders(balances[Token.A])
         sell_orders_b = self.amm_b.get_sell_orders(balances[Token.B])
+        self.logger.debug(f"Sell orders A: {sell_orders_a}")
+        self.logger.debug(f"Sell orders B: {sell_orders_b}")
 
         best_sell_order_size_a = sell_orders_a[0].size if len(sell_orders_a) > 0 else 0
         best_sell_order_size_b = sell_orders_b[0].size if len(sell_orders_b) > 0 else 0
 
         total_collateral_allocation = min(balances[Collateral], self.max_collateral)
+        self.logger.debug(f"Total collateral allocation: {total_collateral_allocation}")
 
+        self.logger.debug(f"Calculating collateral allocation")
         (collateral_allocation_a, collateral_allocation_b) = self.collateral_allocation(
             total_collateral_allocation,
             best_sell_order_size_a,
             best_sell_order_size_b,
         )
+        self.logger.debug(f"Collateral allocation A: {collateral_allocation_a}")
+        self.logger.debug(f"Collateral allocation B: {collateral_allocation_b}")
 
+        self.logger.debug(f"Getting buy orders for AMM")
         buy_orders_a = self.amm_a.get_buy_orders(collateral_allocation_a)
         buy_orders_b = self.amm_b.get_buy_orders(collateral_allocation_b)
+        self.logger.debug(f"Buy orders A: {buy_orders_a}")
+        self.logger.debug(f"Buy orders B: {buy_orders_b}")
 
         orders = sell_orders_a + sell_orders_b + buy_orders_a + buy_orders_b
 
