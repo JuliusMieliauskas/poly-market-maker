@@ -51,7 +51,7 @@ class AMMStrategy(BaseStrategy):
             min_size=config.get("min_size"),
         )
 
-    def get_orders(self, orderbook: OrderBook, target_prices):
+    def get_orders(self, orderbook: OrderBook, target_prices, market_spread: float):
         self.logger.debug("AMMStrategy. Getting orders...")
         orders_to_cancel = []
         orders_to_place = []
@@ -60,6 +60,7 @@ class AMMStrategy(BaseStrategy):
         expected_orders = self.amm_manager.get_expected_orders(
             target_prices,
             orderbook.balances,
+            market_spread
         )
         expected_order_types = set(OrderType(order) for order in expected_orders)
 

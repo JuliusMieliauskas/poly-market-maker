@@ -59,9 +59,11 @@ class StrategyManager:
             return
 
         token_prices = self.get_token_prices()
-        self.logger.debug(f"{token_prices}")
+        self.logger.debug(f"Token prices: {token_prices}")
+        market_spread = self.get_token_spread()
+        self.logger.debug(f"New market spread: {market_spread}")
         (orders_to_cancel, orders_to_place) = self.strategy.get_orders(
-            orderbook, token_prices
+            orderbook, token_prices, market_spread
         )
 
         self.logger.debug(f"order to cancel: {len(orders_to_cancel)}")
@@ -92,6 +94,13 @@ class StrategyManager:
         )
         price_b = round(1 - price_a, MAX_DECIMALS)
         return {Token.A: price_a, Token.B: price_b}
+    
+    def get_token_spread(self):
+        spread = round(
+            self.price_feed.get_spread(Token.A),
+            MAX_DECIMALS,
+        )
+        return spread
 
     def cancel_orders(self, orders_to_cancel):
         if len(orders_to_cancel) > 0:

@@ -63,6 +63,9 @@ class AMM:
         else:
             return 0
         
+    def update_spread(self, spread: float):
+        self.spread = spread
+        
     def set_price(self, p_i: float):
         self.p_i = p_i
         self.p_u = round(min(p_i + self.depth, self.p_max), self.count_decimal_places(self.min_tick))
@@ -165,8 +168,15 @@ class AMMManager:
         self,
         target_prices,
         balances,
+        market_spread
     ):
-        self.logger.debug(f"Target prices: {target_prices}")
+        order_spread = market_spread
+        if order_spread < 0.01:
+            order_spread = 2 * market_spread # double the spread for the markets with low spread
+            
+        self.amm_a.update_spread(order_spread)
+        self.amm_b.update_spread(order_spread)
+        
         self.logger.debug(f"Setting prices for AMM")
         self.amm_a.set_price(target_prices[Token.A])
         self.amm_b.set_price(target_prices[Token.B])
@@ -176,6 +186,14 @@ class AMMManager:
         sell_orders_b = self.amm_b.get_sell_orders(balances[Token.B])
         self.logger.debug(f"Sell orders A: {sell_orders_a}")
         self.logger.debug(f"Sell orders B: {sell_orders_b}")
+        amount_of_sell_orders_in_dollars_A = sum(
+            [order.size * order.price for order in sell_orders_a]
+        )
+        amount_of_sell_orders_in_dollars_B = sum(
+            [order.size * order.price for order in sell_orders_b]
+        )
+        self.logger.debug(f"Amount of sell orders in dollars A: {amount_of_sell_orders_in_dollars_A}")
+        self.logger.debug(f"Amount of sell orders in dollars B: {amount_of_sell_orders_in_dollars_B}")
 
         best_sell_order_size_a = sell_orders_a[0].size if len(sell_orders_a) > 0 else 0
         best_sell_order_size_b = sell_orders_b[0].size if len(sell_orders_b) > 0 else 0

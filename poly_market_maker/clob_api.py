@@ -75,6 +75,20 @@ class ClobApi:
             )
 
         return self._rand_price()
+    
+    def get_spread(self, token_id: int) -> float:
+        """
+        Get the current spread of the orderbook on token
+        """
+        self.logger.debug("Fetching spread from the API...")
+        try:
+            resp = self.client.get_spread(token_id)
+            if resp.get("spread") is not None:
+                return float(resp.get("spread"))
+        except Exception as e:
+            self.logger.error(f"Error fetching current spread from the CLOB API: {e}")
+
+        return float("inf")
 
     def _rand_price(self) -> float:
         price = randomize_default_price(DEFAULT_PRICE)

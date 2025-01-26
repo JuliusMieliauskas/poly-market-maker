@@ -18,6 +18,9 @@ class PriceFeed:
 
     def get_price(self) -> float:
         raise NotImplemented()
+    
+    def get_spread(self) -> float:
+        raise NotImplemented()
 
 
 class PriceFeedClob(PriceFeed):
@@ -39,3 +42,11 @@ class PriceFeedClob(PriceFeed):
         target_price = self.clob_api.get_price(token_id)
         self.logger.debug(f"target_price: {target_price}")
         return target_price
+
+    def get_spread(self, token: Token) -> float:
+        token_id = self.market.get_token_id(token)
+
+        self.logger.debug("Fetching spread using the clob midpoint price...")
+        spread = self.clob_api.get_spread(token_id)
+        self.logger.debug(f"spread: {spread}")
+        return spread
