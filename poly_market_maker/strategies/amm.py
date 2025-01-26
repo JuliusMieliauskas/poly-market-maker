@@ -168,11 +168,11 @@ class AMMManager:
         self,
         target_prices,
         balances,
-        market_spread
+        my_order_spread
     ):
-        order_spread = market_spread
-        if order_spread < 0.01:
-            order_spread = 2 * market_spread # double the spread for the markets with low spread
+        order_spread = my_order_spread
+        # if order_spread < 0.01:
+        #     order_spread = 2 * my_order_spread # double the spread for the markets with low spread
             
         self.amm_a.update_spread(order_spread)
         self.amm_b.update_spread(order_spread)

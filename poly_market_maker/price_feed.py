@@ -21,6 +21,9 @@ class PriceFeed:
     
     def get_spread(self) -> float:
         raise NotImplemented()
+    
+    def get_order_book(self) -> dict:
+        raise NotImplemented()
 
 
 class PriceFeedClob(PriceFeed):
@@ -46,7 +49,15 @@ class PriceFeedClob(PriceFeed):
     def get_spread(self, token: Token) -> float:
         token_id = self.market.get_token_id(token)
 
-        self.logger.debug("Fetching spread using the clob midpoint price...")
+        self.logger.debug("Fetching market spread...")
         spread = self.clob_api.get_spread(token_id)
         self.logger.debug(f"spread: {spread}")
         return spread
+    
+    def get_order_book(self, token: Token) -> dict:
+        token_id = self.market.get_token_id(token)
+
+        self.logger.debug("Fetching order book...")
+        order_book = self.clob_api.get_order_book(token_id)
+        self.logger.debug(f"order_book: {order_book}")
+        return order_book

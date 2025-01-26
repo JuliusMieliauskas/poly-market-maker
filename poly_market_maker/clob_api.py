@@ -89,6 +89,33 @@ class ClobApi:
             self.logger.error(f"Error fetching current spread from the CLOB API: {e}")
 
         return float("inf")
+    
+    def get_order_book(self, token_id: int) -> dict:
+        """
+        Get the current order book on the orderbook on token
+        """
+        self.logger.debug("Fetching order book from the API...")
+        try:
+            resp = self.client.get_order_book(token_id)
+            result = {}
+            if resp.bids is not None:
+                result["bids"] = sorted(
+                    [{"size": float(bid.size), "price": float(bid.price)} for bid in resp.bids],
+                    key=lambda x: x["price"],
+                    reverse=True
+                )
+            if resp.asks is not None:
+                result["asks"] = sorted(
+                    [{"size": float(ask.size), "price": float(ask.price)} for ask in resp.asks],
+                    key=lambda x: x["price"]
+                )
+            return result
+        except Exception as e:
+            self.logger.error(f"Error fetching current order book from the CLOB API: {e}")
+        return {
+            "bids": [],
+            "asks": []
+        }
 
     def _rand_price(self) -> float:
         price = randomize_default_price(DEFAULT_PRICE)

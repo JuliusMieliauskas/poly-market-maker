@@ -60,10 +60,25 @@ class StrategyManager:
 
         token_prices = self.get_token_prices()
         self.logger.debug(f"Token prices: {token_prices}")
+        
         market_spread = self.get_token_spread()
+        my_order_spread = market_spread
+
+        token_market_order_book = self.get_token_order_book()
+        if token_market_order_book is not None:
+            # self.logger.debug(f"Token market order book: {token_market_order_book}")
+            self.logger.debug(f"Token market order book: {token_market_order_book.__len__()}")
+            midpoint = token_prices[Token.A]
+            bids = token_market_order_book['bids']
+            self.logger.debug(f"Midpoint: {midpoint}\nToken market order book bids: {bids}")
+            if bids is not None and bids.__len__() >= 3:
+                my_order_spread = (midpoint - bids[1]['price']) + round(bids[1]['price'] - bids[2]['price'], MAX_DECIMALS)
+
         self.logger.debug(f"New market spread: {market_spread}")
+        self.logger.debug(f"My order spread: {my_order_spread}")
+        
         (orders_to_cancel, orders_to_place) = self.strategy.get_orders(
-            orderbook, token_prices, market_spread
+            orderbook, token_prices, my_order_spread
         )
 
         self.logger.debug(f"order to cancel: {len(orders_to_cancel)}")
@@ -101,6 +116,10 @@ class StrategyManager:
             MAX_DECIMALS,
         )
         return spread
+    
+    def get_token_order_book(self):
+        token_book = self.price_feed.get_order_book(Token.A)
+        return token_book
 
     def cancel_orders(self, orders_to_cancel):
         if len(orders_to_cancel) > 0:
