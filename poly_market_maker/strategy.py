@@ -10,6 +10,7 @@ from poly_market_maker.constants import MAX_DECIMALS
 from poly_market_maker.strategies.base_strategy import BaseStrategy
 from poly_market_maker.strategies.amm_strategy import AMMStrategy
 from poly_market_maker.strategies.bands_strategy import BandsStrategy
+from poly_market_maker.utils import count_decimal_places
 
 
 class Strategy(Enum):
@@ -49,36 +50,95 @@ class StrategyManager:
             case _:
                 raise Exception("Invalid strategy")
 
-    def synchronize(self):
-        self.logger.debug("Synchronizing strategy...")
+    def calculate_depth_weighted_spread(self, bids, asks, depth = 5, round_decimals = 5):
+        # Market spread adjusted for 'depth' levels of order book
+        # Calculated by the fomula:
+        # weighted_spread = SUM((ask_price_i - bid_price_i) * min(ask_size_i, bid_size_i)) / SUM(min(ask_size_i, bid_size_i))
+        # where i is the ith level of the order book (i = 0, 1, 2, ..., depth-1)
+        if bids is None or asks is None:
+            return float("inf")
+        if len(bids) < depth or len(asks) < depth:
+            return float("inf")
+            
+        total_volume_user_for_weighting = 0
+        total_spread = 0
+        for i in range(depth):
+            total_volume_user_for_weighting += min(bids[i]['size'], asks[i]['size'])
+            total_spread += (asks[i]['price'] - bids[i]['price']) * min(bids[i]['size'], asks[i]['size'])
 
+        if total_volume_user_for_weighting == 0:
+            return float("inf")
+        return round(total_spread / total_volume_user_for_weighting, round_decimals)
+
+    def synchronize(self):
         try:
             orderbook = self.get_order_book()
         except Exception as e:
             self.logger.error(f"{e}")
             return
 
-        token_prices = self.get_token_prices()
-        self.logger.debug(f"Token prices: {token_prices}")
-        
-        market_spread = self.get_token_spread()
-        my_order_spread = market_spread
-
+        market_spread = float("inf")
+        my_order_spread_token_A = float("inf")
+        my_order_spread_token_B = float("inf")
+        midpoint = 0
+        token_prices = {Token.A: 0.0, Token.B: 0.0}
         token_market_order_book = self.get_token_order_book()
-        if token_market_order_book is not None:
-            # self.logger.debug(f"Token market order book: {token_market_order_book}")
-            self.logger.debug(f"Token market order book: {token_market_order_book.__len__()}")
-            midpoint = token_prices[Token.A]
-            bids = token_market_order_book['bids']
-            self.logger.debug(f"Midpoint: {midpoint}\nToken market order book bids: {bids}")
-            if bids is not None and bids.__len__() >= 3:
-                my_order_spread = (midpoint - bids[1]['price']) + round(bids[1]['price'] - bids[2]['price'], MAX_DECIMALS)
 
-        self.logger.debug(f"New market spread: {market_spread}")
-        self.logger.debug(f"My order spread: {my_order_spread}")
+        if token_market_order_book is not None:
+            bids = token_market_order_book['bids']
+            asks = token_market_order_book['asks']
+            self.logger.debug(f"Token market order book bids: {bids}")
+            self.logger.debug(f"Token market order book asks: {asks}")
+            self.logger.debug(f"Depth-weighted market order book spread: {self.calculate_depth_weighted_spread(bids, asks)}")
+
+            if bids is not None and asks is not None and bids.__len__() > 0 and asks.__len__() > 0:
+                midpoint = (bids[0]['price'] + asks[0]['price']) / 2
+                token_prices = {Token.A: midpoint, Token.B: 1 - midpoint}
+                market_spread = round(asks[0]['price'] - bids[0]['price'], MAX_DECIMALS)
+                self.logger.debug(f"Midpoint: {midpoint}")
+                self.logger.debug(f"Market spread: {market_spread}")
+                if bids.__len__() >= 2:
+                    self.logger.debug(f"Max collateral: {self.strategy.amm_manager.max_collateral}")
+                    self.logger.debug(f"Total size of best bid: {bids[0]['price']*bids[0]['size']}")
+                    first_tick_spread = round(bids[1]['price'] - bids[0]['price'], count_decimal_places(self.strategy.amm_manager.amm_a.min_tick))
+                    if (
+                        bids[0]['price']*bids[0]['size'] > self.strategy.amm_manager.max_collateral/2 and
+                        first_tick_spread == self.strategy.amm_manager.amm_a.min_tick
+                    ):
+                        self.logger.debug(f"Best bid is more than half of max collateral")
+                        my_order_spread_token_A = (midpoint - bids[0]['price']) + self.strategy.amm_manager.amm_a.min_tick
+                    elif(
+                        bids[1]['price']*bids[1]['size'] > self.strategy.amm_manager.max_collateral
+                    ):
+                        self.logger.debug(f"Second best bid is more than max collateral")
+                        my_order_spread_token_A = (midpoint - bids[1]['price'])
+                    else:
+                        my_order_spread_token_A = (midpoint - bids[1]['price']) + self.strategy.amm_manager.amm_a.min_tick
+                if asks.__len__() >= 2:
+                    self.logger.debug(f"Max collateral: {self.strategy.amm_manager.max_collateral}")
+                    self.logger.debug(f"Total size of best ask: {asks[0]['price']*asks[0]['size']}")
+                    first_tick_spread = round(asks[1]['price'] - asks[0]['price'], count_decimal_places(self.strategy.amm_manager.amm_b.min_tick))
+                    if (
+                        asks[0]['price']*asks[0]['size'] > self.strategy.amm_manager.max_collateral/2 
+                        and first_tick_spread == self.strategy.amm_manager.amm_b.min_tick
+                    ):
+                        self.logger.debug(f"Best ask is more than half of max collateral")
+                        my_order_spread_token_B = (asks[0]['price'] - midpoint) + self.strategy.amm_manager.amm_b.min_tick
+                    elif(
+                        asks[1]['price']*asks[1]['size'] > self.strategy.amm_manager.max_collateral
+                    ):
+                        self.logger.debug(f"Second best ask is more than max collateral")
+                        my_order_spread_token_B = (asks[1]['price'] - midpoint)
+                    else:
+                        my_order_spread_token_B = (asks[1]['price'] - midpoint) + self.strategy.amm_manager.amm_b.min_tick
+
+        my_order_spread_token_A = round(my_order_spread_token_A, count_decimal_places(self.strategy.amm_manager.amm_a.min_tick) + 1)
+        my_order_spread_token_B = round(my_order_spread_token_B, count_decimal_places(self.strategy.amm_manager.amm_b.min_tick) + 1)
+        self.logger.debug(f"My order spread for token A: {my_order_spread_token_A}")
+        self.logger.debug(f"My order spread for token B: {my_order_spread_token_B}")
         
         (orders_to_cancel, orders_to_place) = self.strategy.get_orders(
-            orderbook, token_prices, my_order_spread
+            orderbook, token_prices, my_order_spread_token_A, my_order_spread_token_B
         )
 
         self.logger.debug(f"order to cancel: {len(orders_to_cancel)}")

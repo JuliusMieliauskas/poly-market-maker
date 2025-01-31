@@ -3,7 +3,7 @@ from math import sqrt
 
 from poly_market_maker.token import Token, Collateral
 from poly_market_maker.order import Order, Side
-from poly_market_maker.utils import math_round_down
+from poly_market_maker.utils import count_decimal_places, math_round_down
 
 
 class AMMConfig:
@@ -53,44 +53,39 @@ class AMM:
         self.max_collateral = config.max_collateral
         self.min_tick = config.min_tick
         self.min_size = config.min_size
-
-    def count_decimal_places(self, number: float) -> int:
-        # Counts number of decimal places in a float, e.g. 0.001 -> 3, 0.01 -> 2
-        number_str = str(number)
-        if '.' in number_str:
-            decimal_part = number_str.split('.')[1]
-            return len(decimal_part)
-        else:
-            return 0
         
     def update_spread(self, spread: float):
         self.spread = spread
         
     def set_price(self, p_i: float):
         self.p_i = p_i
-        self.p_u = round(min(p_i + self.depth, self.p_max), self.count_decimal_places(self.min_tick))
-        self.p_l = round(max(p_i - self.depth, self.p_min), self.count_decimal_places(self.min_tick))
+        self.p_u = round(min(p_i + self.depth, self.p_max) - self.min_tick / 10, count_decimal_places(self.min_tick))
+        self.p_l = round(max(p_i - self.depth, self.p_min) + self.min_tick / 10, count_decimal_places(self.min_tick))
+        self.logger.debug(f"Token: {self.token}, p_i: {self.p_i}, p_u: {self.p_u}, p_l: {self.p_l}")
 
         self.buy_prices = []
-        price = round(self.p_i - self.spread, self.count_decimal_places(self.min_tick))
+        price = round(self.p_i - self.spread, count_decimal_places(self.min_tick))
         while price >= self.p_l:
             self.buy_prices.append(price)
-            price = round(price - self.delta, self.count_decimal_places(self.min_tick))
+            price = round(price - self.delta, count_decimal_places(self.min_tick))
 
         self.sell_prices = []
-        price = round(self.p_i + self.spread, self.count_decimal_places(self.min_tick))
+        price = round(self.p_i + self.spread, count_decimal_places(self.min_tick))
         while price <= self.p_u:
             self.sell_prices.append(price)
-            price = round(price + self.delta, self.count_decimal_places(self.min_tick))
+            price = round(price + self.delta, count_decimal_places(self.min_tick))
         self.logger.debug(f"Token: {self.token}, Buy prices: {self.buy_prices}")
         self.logger.debug(f"Token: {self.token}, Sell prices: {self.sell_prices}")
 
     def get_sell_orders(self, x):
+        sizes_before_diff = [self.sell_size(x, p_t) for p_t in self.sell_prices]
+        self.logger.debug(f"Sell Sizes before diff: {sizes_before_diff}")
         sizes = [
             # round down to avoid too large orders
             math_round_down(size, 2)
-            for size in self.diff([self.sell_size(x, p_t) for p_t in self.sell_prices])
+            for size in self.diff(sizes_before_diff)
         ]
+        self.logger.debug(f"Sell Sizes after diff: {sizes}")
 
         orders = [
             Order(
@@ -107,14 +102,14 @@ class AMM:
     def get_buy_orders(self, y):
         # y - total ammount of collateral allocated for token
         sizes_before_diff = [self.buy_size(y, p_t) for p_t in self.buy_prices]
-        self.logger.debug(f"Sizes before diff: {sizes_before_diff}")
+        self.logger.debug(f"Buy Sizes before diff: {sizes_before_diff}")
 
         sizes = [
             # round down to avoid too large orders
             math_round_down(size, 2)
             for size in self.diff(sizes_before_diff)
         ]
-        self.logger.debug(f"Sizes after diff: {sizes}")
+        self.logger.debug(f"Buy Sizes after diff: {sizes}")
 
         orders = [
             Order(
@@ -129,6 +124,8 @@ class AMM:
         return orders
 
     def phi(self):
+        if(self.buy_prices is None or len(self.buy_prices) == 0):
+            return 0
         return (1 / (sqrt(self.p_i) - sqrt(self.p_l))) * (
             1 / sqrt(self.buy_prices[0]) - 1 / sqrt(self.p_i)
         )
@@ -168,14 +165,11 @@ class AMMManager:
         self,
         target_prices,
         balances,
-        my_order_spread
-    ):
-        order_spread = my_order_spread
-        # if order_spread < 0.01:
-        #     order_spread = 2 * my_order_spread # double the spread for the markets with low spread
-            
-        self.amm_a.update_spread(order_spread)
-        self.amm_b.update_spread(order_spread)
+        my_order_spread_token_A,
+        my_order_spread_token_B,
+    ):            
+        self.amm_a.update_spread(my_order_spread_token_A)
+        self.amm_b.update_spread(my_order_spread_token_B)
         
         self.logger.debug(f"Setting prices for AMM")
         self.amm_a.set_price(target_prices[Token.A])
@@ -226,6 +220,11 @@ class AMMManager:
         best_sell_order_size_a: float,
         best_sell_order_size_b: float,
     ):
+        a_phi = self.amm_a.phi()
+        b_phi = self.amm_b.phi()
+        if(a_phi == 0 and b_phi == 0):
+            return (0, 0) # Edge case: no orders to place
+        
         collateral_allocation_a = (
             best_sell_order_size_a
             - best_sell_order_size_b

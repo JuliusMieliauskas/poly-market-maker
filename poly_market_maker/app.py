@@ -139,8 +139,8 @@ class App:
 
         return {
             Collateral: float(collateral_balance),
-            Token.A: float(token_A_balance),
-            Token.B: float(token_B_balance),
+            Token.A: float(token_A_balance) / 1000000, # divide by 1e6 to get the actual token balance
+            Token.B: float(token_B_balance) / 1000000, 
         }
 
     def get_orders(self) -> list[Order]:

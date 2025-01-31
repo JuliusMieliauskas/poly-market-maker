@@ -56,3 +56,12 @@ def add_randomness(price: float, lower: float, upper: float) -> float:
 
 def randomize_default_price(price: float) -> float:
     return add_randomness(price, -0.1, 0.1)
+
+def count_decimal_places(number: float) -> int:
+    # Counts number of decimal places in a float, e.g. 0.001 -> 3, 0.01 -> 2
+    number_str = str(number)
+    if '.' in number_str:
+        decimal_part = number_str.split('.')[1]
+        return len(decimal_part)
+    else:
+        return 0
