@@ -69,7 +69,16 @@ class StrategyManager:
         if total_volume_user_for_weighting == 0:
             return float("inf")
         return round(total_spread / total_volume_user_for_weighting, round_decimals)
-
+    
+    def get_spread_where_order_value_exceeds_max_collateral(self, orders, midpoint, max_collateral, round_decimals = 5):
+        # Calculate the spread where the value of the sum of bid/ask exceeds max collateral
+        total_sum_of_bids = 0
+        for i in range(len(orders)):
+            total_sum_of_bids += orders[i]['price']*orders[i]['size']
+            if total_sum_of_bids > max_collateral:
+                return abs(round(midpoint - orders[i]['price'], round_decimals))
+        return float("inf")
+    
     def synchronize(self):
         try:
             orderbook = self.get_order_book()
@@ -89,51 +98,56 @@ class StrategyManager:
             asks = token_market_order_book['asks']
             self.logger.debug(f"Token market order book bids: {bids}")
             self.logger.debug(f"Token market order book asks: {asks}")
-            self.logger.debug(f"Depth-weighted market order book spread: {self.calculate_depth_weighted_spread(bids, asks)}")
 
             if bids is not None and asks is not None and bids.__len__() > 0 and asks.__len__() > 0:
                 midpoint = (bids[0]['price'] + asks[0]['price']) / 2
+                bid_spread_greater_than_max_collateral = self.get_spread_where_order_value_exceeds_max_collateral(bids, midpoint, max_collateral=self.strategy.amm_manager.max_collateral)
+                self.logger.debug(f"Bid spread to exceed the collateral: {bid_spread_greater_than_max_collateral}")
+                ask_spread_greater_than_max_collateral = self.get_spread_where_order_value_exceeds_max_collateral(asks, midpoint, max_collateral=self.strategy.amm_manager.max_collateral)
+                self.logger.debug(f"Ask spread to exceed the collateral: {ask_spread_greater_than_max_collateral}")
                 token_prices = {Token.A: midpoint, Token.B: 1 - midpoint}
                 market_spread = round(asks[0]['price'] - bids[0]['price'], MAX_DECIMALS)
                 self.logger.debug(f"Midpoint: {midpoint}")
                 self.logger.debug(f"Market spread: {market_spread}")
-                if bids.__len__() >= 2:
-                    self.logger.debug(f"Max collateral: {self.strategy.amm_manager.max_collateral}")
-                    self.logger.debug(f"Total size of best bid: {bids[0]['price']*bids[0]['size']}")
-                    first_tick_spread = round(bids[1]['price'] - bids[0]['price'], count_decimal_places(self.strategy.amm_manager.amm_a.min_tick))
-                    if (
-                        bids[0]['price']*bids[0]['size'] > self.strategy.amm_manager.max_collateral/2 and
-                        first_tick_spread == self.strategy.amm_manager.amm_a.min_tick
-                    ):
-                        self.logger.debug(f"Best bid is more than half of max collateral")
-                        my_order_spread_token_A = (midpoint - bids[0]['price']) + self.strategy.amm_manager.amm_a.min_tick
-                    elif(
-                        bids[1]['price']*bids[1]['size'] > self.strategy.amm_manager.max_collateral
-                    ):
-                        self.logger.debug(f"Second best bid is more than max collateral")
-                        my_order_spread_token_A = (midpoint - bids[1]['price'])
-                    else:
-                        my_order_spread_token_A = (midpoint - bids[1]['price']) + self.strategy.amm_manager.amm_a.min_tick
-                if asks.__len__() >= 2:
-                    self.logger.debug(f"Max collateral: {self.strategy.amm_manager.max_collateral}")
-                    self.logger.debug(f"Total size of best ask: {asks[0]['price']*asks[0]['size']}")
-                    first_tick_spread = round(asks[1]['price'] - asks[0]['price'], count_decimal_places(self.strategy.amm_manager.amm_b.min_tick))
-                    if (
-                        asks[0]['price']*asks[0]['size'] > self.strategy.amm_manager.max_collateral/2 
-                        and first_tick_spread == self.strategy.amm_manager.amm_b.min_tick
-                    ):
-                        self.logger.debug(f"Best ask is more than half of max collateral")
-                        my_order_spread_token_B = (asks[0]['price'] - midpoint) + self.strategy.amm_manager.amm_b.min_tick
-                    elif(
-                        asks[1]['price']*asks[1]['size'] > self.strategy.amm_manager.max_collateral
-                    ):
-                        self.logger.debug(f"Second best ask is more than max collateral")
-                        my_order_spread_token_B = (asks[1]['price'] - midpoint)
-                    else:
-                        my_order_spread_token_B = (asks[1]['price'] - midpoint) + self.strategy.amm_manager.amm_b.min_tick
+        #         if bids.__len__() >= 2:
+        #             self.logger.debug(f"Max collateral: {self.strategy.amm_manager.max_collateral}")
+        #             self.logger.debug(f"Total size of best bid: {bids[0]['price']*bids[0]['size']}")
+        #             first_tick_spread = round(bids[1]['price'] - bids[0]['price'], count_decimal_places(self.strategy.amm_manager.amm_a.min_tick))
+        #             if (
+        #                 bids[0]['price']*bids[0]['size'] > self.strategy.amm_manager.max_collateral/2 and
+        #                 first_tick_spread == self.strategy.amm_manager.amm_a.min_tick
+        #             ):
+        #                 self.logger.debug(f"Best bid is more than half of max collateral")
+        #                 my_order_spread_token_A = (midpoint - bids[0]['price']) + self.strategy.amm_manager.amm_a.min_tick
+        #             elif(
+        #                 bids[1]['price']*bids[1]['size'] > self.strategy.amm_manager.max_collateral
+        #             ):
+        #                 self.logger.debug(f"Second best bid is more than max collateral")
+        #                 my_order_spread_token_A = (midpoint - bids[1]['price'])
+        #             else:
+        #                 my_order_spread_token_A = (midpoint - bids[1]['price']) + self.strategy.amm_manager.amm_a.min_tick
+        #         if asks.__len__() >= 2:
+        #             self.logger.debug(f"Max collateral: {self.strategy.amm_manager.max_collateral}")
+        #             self.logger.debug(f"Total size of best ask: {asks[0]['price']*asks[0]['size']}")
+        #             first_tick_spread = round(asks[1]['price'] - asks[0]['price'], count_decimal_places(self.strategy.amm_manager.amm_b.min_tick))
+        #             if (
+        #                 asks[0]['price']*asks[0]['size'] > self.strategy.amm_manager.max_collateral/2 
+        #                 and first_tick_spread == self.strategy.amm_manager.amm_b.min_tick
+        #             ):
+        #                 self.logger.debug(f"Best ask is more than half of max collateral")
+        #                 my_order_spread_token_B = (asks[0]['price'] - midpoint) + self.strategy.amm_manager.amm_b.min_tick
+        #             elif(
+        #                 asks[1]['price']*asks[1]['size'] > self.strategy.amm_manager.max_collateral
+        #             ):
+        #                 self.logger.debug(f"Second best ask is more than max collateral")
+        #                 my_order_spread_token_B = (asks[1]['price'] - midpoint)
+        #             else:
+        #                 my_order_spread_token_B = (asks[1]['price'] - midpoint) + self.strategy.amm_manager.amm_b.min_tick
 
-        my_order_spread_token_A = round(my_order_spread_token_A, count_decimal_places(self.strategy.amm_manager.amm_a.min_tick) + 1)
-        my_order_spread_token_B = round(my_order_spread_token_B, count_decimal_places(self.strategy.amm_manager.amm_b.min_tick) + 1)
+        # my_order_spread_token_A = round(my_order_spread_token_A, count_decimal_places(self.strategy.amm_manager.amm_a.min_tick) + 1)
+        # my_order_spread_token_B = round(my_order_spread_token_B, count_decimal_places(self.strategy.amm_manager.amm_b.min_tick) + 1)
+        my_order_spread_token_A = bid_spread_greater_than_max_collateral
+        my_order_spread_token_B = ask_spread_greater_than_max_collateral
         self.logger.debug(f"My order spread for token A: {my_order_spread_token_A}")
         self.logger.debug(f"My order spread for token B: {my_order_spread_token_B}")
         

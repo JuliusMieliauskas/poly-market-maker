@@ -59,5 +59,4 @@ class PriceFeedClob(PriceFeed):
 
         self.logger.debug("Fetching order book...")
         order_book = self.clob_api.get_order_book(token_id)
-        self.logger.debug(f"order_book: {order_book}")
         return order_book
