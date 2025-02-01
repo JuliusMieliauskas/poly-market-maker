@@ -210,6 +210,13 @@ class AMMManager:
         self.logger.debug(f"Buy orders A: {buy_orders_a}")
         self.logger.debug(f"Buy orders B: {buy_orders_b}")
 
+        # Cancel all buy orders, if the midpoint of the market is in interval [0, 0.1] or [0.9, 1] and there are no buy orders for either of the tokens
+        # This is to prevent the bot from placing orders on only one side of the midpoint if midpoint is in defined intervals, as those orders are not rewarded
+        if (target_prices[Token.A] < 0.1 or target_prices[Token.A] > 0.9) and (len(buy_orders_a) == 0 or len(buy_orders_b) == 0):
+            self.logger.debug(f"Midpoint is in interval [0, 0.1] or [0.9, 1] and there are no buy orders for either of the tokens. Cancelling all buy orders.")
+            buy_orders_a = []
+            buy_orders_b = []
+
         orders = sell_orders_a + sell_orders_b + buy_orders_a + buy_orders_b
 
         return orders
