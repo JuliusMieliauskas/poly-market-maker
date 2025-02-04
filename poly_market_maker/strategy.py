@@ -127,7 +127,8 @@ class StrategyManager:
         self.cancel_orders(orders_to_cancel)
         self.place_orders(orders_to_place)
 
-        self.logger.debug("Synchronized strategy!")
+        self.logger.debug("Synchronized strategy! In total placed {} orders".format(len(orders_to_place)))
+        return len(orders_to_place)
 
     def get_order_book(self):
         orderbook = self.order_book_manager.get_order_book()

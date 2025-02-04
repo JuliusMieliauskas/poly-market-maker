@@ -78,9 +78,12 @@ class App:
 
     def main(self):
         self.logger.debug(f"Synchronization interval: {self.sync_interval}")
+        self.no_orders_intervals_count = 0
         with Lifecycle() as lifecycle:
+            self.lifecycle = lifecycle  # Store the lifecycle instance
             lifecycle.on_startup(self.startup)
-            lifecycle.every(self.sync_interval, self.synchronize)  # Sync every 5s
+            lifecycle.every(self.sync_interval, self.synchronize)
+            lifecycle.every(self.sync_interval, self.check_no_orders)
             lifecycle.on_shutdown(self.shutdown)
 
     """
@@ -97,8 +100,22 @@ class App:
         Synchronize the orderbook by cancelling orders out of bands and placing new orders if necessary
         """
         self.logger.debug("Synchronizing orderbook...")
-        self.strategy_manager.synchronize()
+        orders_placed = self.strategy_manager.synchronize()
+        if orders_placed:
+            self.no_orders_intervals_count = 0
+        else:
+            self.no_orders_intervals_count += 1
         self.logger.debug("Synchronized orderbook!")
+
+    def check_no_orders(self, intervals_count=3):
+        """
+        Check if no orders have been placed in the last consecutive intervals
+        """
+        self.logger.debug(f"Checking if no orders have been placed in the last {intervals_count} intervals...")
+        self.logger.debug(f"Current no orders intervals count: {self.no_orders_intervals_count}")
+        if self.no_orders_intervals_count >= intervals_count:
+            self.logger.info(f"No orders placed in the last {intervals_count} intervals. Shutting down...")
+            self.shutdown()
 
     def shutdown(self):
         """
@@ -106,6 +123,8 @@ class App:
         """
         self.logger.info("Keeper shutting down...")
         self.order_book_manager.cancel_all_orders()
+        self.logger.info("Cancelling lifecycle tasks...")
+        self.lifecycle.terminate()  # Terminate the lifecycle to stop further tasks
         self.logger.info("Keeper is shut down!")
 
     """
