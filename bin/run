@@ -17,7 +17,11 @@ source .venv/bin/activate
 # Set a default value for REFRESH_FREQUENCY if it is not defined
 REFRESH_FREQUENCY=${REFRESH_FREQUENCY:-20}
 
+# Set a default value for SYNC_INTERVAL if it is not defined
+SYNC_INTERVAL=${SYNC_INTERVAL:-17}
+
 REFRESH_FREQUENCY_INT=$(echo "$REFRESH_FREQUENCY" | awk '{print int($1)}')
+SYNC_INTERVAL_INT=$(echo "$SYNC_INTERVAL" | awk '{print int($1)}')
 
 exec python3 -m poly_market_maker \
     --private-key "$PRIVATE_KEY" \
@@ -27,4 +31,5 @@ exec python3 -m poly_market_maker \
     --strategy-config "$CONFIG" \
     --funder-address "$FUNDER_ADDRESS" \
     --wallet-address "$WALLET_ADDRESS" \
-    --refresh-frequency "$REFRESH_FREQUENCY_INT"
+    --refresh-frequency "$REFRESH_FREQUENCY_INT" \
+    --sync-interval "$SYNC_INTERVAL_INT"
