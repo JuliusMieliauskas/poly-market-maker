@@ -57,7 +57,7 @@ class AMM:
     def update_spread(self, spread: float):
         self.spread = spread
         
-    def set_price(self, p_i: float):
+    def set_buy_prices(self, p_i: float):
         self.p_i = p_i
         self.p_u = round(min(p_i + self.depth, self.p_max) - self.min_tick / 10, count_decimal_places(self.min_tick))
         self.p_l = round(max(p_i - self.depth, self.p_min) + self.min_tick / 10, count_decimal_places(self.min_tick))
@@ -68,23 +68,25 @@ class AMM:
         while price >= self.p_l:
             self.buy_prices.append(price)
             price = round(price - self.delta, count_decimal_places(self.min_tick))
-
-        self.sell_prices = []
-        price = round(self.p_i + self.spread, count_decimal_places(self.min_tick))
-        while price <= self.p_u:
-            self.sell_prices.append(price)
-            price = round(price + self.delta, count_decimal_places(self.min_tick))
         self.logger.debug(f"Token: {self.token}, Buy prices: {self.buy_prices}")
-        self.logger.debug(f"Token: {self.token}, Sell prices: {self.sell_prices}")
 
-    def get_sell_orders(self, x):
-        sizes_before_diff = [self.sell_size(x, p_t) for p_t in self.sell_prices]
-        self.logger.debug(f"Sell Sizes before diff: {sizes_before_diff}")
-        sizes = [
-            # round down to avoid too large orders
-            math_round_down(size, 2)
-            for size in self.diff(sizes_before_diff)
-        ]
+    def set_sell_prices(self, best_ask: float):
+        # Sell all tokens at the best ask price
+        sell_price = round(best_ask, count_decimal_places(self.min_tick))
+        self.sell_prices = [sell_price]
+        self.logger.debug(f"Token: {self.token}, Sell prices: {self.sell_prices}")
+        
+    def get_sell_orders(self, balance_of_token):
+        if len(self.sell_prices) == 0:
+            return []
+        sizes = [balance_of_token]
+        # sizes_before_diff = [self.sell_size(balance_of_token, p_t) for p_t in self.sell_prices]
+        # self.logger.debug(f"Sell Sizes before diff: {sizes_before_diff}")
+        # sizes = [
+        #     # round down to avoid too large orders
+        #     math_round_down(size, 2)
+        #     for size in self.diff(sizes_before_diff)
+        # ]
         self.logger.debug(f"Sell Sizes after diff: {sizes}")
 
         orders = [
@@ -99,9 +101,8 @@ class AMM:
 
         return orders
 
-    def get_buy_orders(self, y):
-        # y - total ammount of collateral allocated for token
-        sizes_before_diff = [self.buy_size(y, p_t) for p_t in self.buy_prices]
+    def get_buy_orders(self, balance_of_usdc):
+        sizes_before_diff = [self.buy_size(balance_of_usdc, p_t) for p_t in self.buy_prices]
         self.logger.debug(f"Buy Sizes before diff: {sizes_before_diff}")
 
         sizes = [
@@ -172,8 +173,10 @@ class AMMManager:
         self.amm_b.update_spread(my_order_spread_token_B)
         
         self.logger.debug(f"Setting prices for AMM")
-        self.amm_a.set_price(target_prices[Token.A])
-        self.amm_b.set_price(target_prices[Token.B])
+        self.amm_a.set_buy_prices(target_prices[Token.A])
+        self.amm_a.set_sell_prices(target_prices[Token.A])
+        self.amm_b.set_buy_prices(target_prices[Token.B])
+        self.amm_b.set_sell_prices(target_prices[Token.B])
 
         self.logger.debug(f"Getting orders for AMM")
         sell_orders_a = self.amm_a.get_sell_orders(balances[Token.A])
